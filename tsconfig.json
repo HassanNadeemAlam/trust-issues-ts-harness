@@ -13,6 +13,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["core", "plugins", "tests", "templates", "harness.config.ts"],
+  "include": ["core", "plugins", "tests", "templates", "apps", "workflow", "hooks", "checks", "harness.config.ts"],
   "exclude": ["runs", "tests/fixtures"]
 }

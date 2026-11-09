@@ -1,0 +1,33 @@
+{
+  "task": "todo-api",
+  "workspace": "/Users/hassannadeem/Desktop/sf-harness-hsn/runs/todo-api-1794251255954/claude-code/workspace",
+  "finished": true,
+  "checks": [
+    {
+      "name": "zod",
+      "findings": []
+    },
+    {
+      "name": "rfc7807",
+      "findings": []
+    },
+    {
+      "name": "types",
+      "findings": []
+    },
+    {
+      "name": "plugins",
+      "findings": []
+    }
+  ],
+  "passed": true,
+  "tokens": {
+    "driver": "claude-code",
+    "turns": 4,
+    "input": 319949,
+    "output": 5449,
+    "contextFootprint": 1862,
+    "eagerContextFootprint": 10290,
+    "reductionPct": 81.9
+  }
+}

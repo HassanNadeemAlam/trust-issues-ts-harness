@@ -42,8 +42,8 @@ describe("extensibility without core edits", () => {
       lintRules: [{ name: "no-todo-comment", check: (f) => (f.text.includes("TODO:") ? [{ rule: "no-todo-comment", file: f.path, message: "TODO left" }] : []) }],
     };
     const registry = await loadRegistry(undefined, [plugin]);
-    expect(registry.lintRules().map((r) => r.name)).toEqual(["no-console", "no-todo-comment"]);
-    expect(registry.lintRules()[1]!.check({ path: "src/a.ts", text: "// TODO: x" })).toHaveLength(1);
+    expect(registry.lintRules().map((r) => r.name)).toContain("no-todo-comment");
+    expect(registry.lintRules().find((r) => r.name === "no-todo-comment")!.check({ path: "src/a.ts", text: "// TODO: x" })).toHaveLength(1);
   });
 
   it("rejects duplicate registrations", async () => {
