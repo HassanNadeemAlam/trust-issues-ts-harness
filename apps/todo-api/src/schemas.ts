@@ -1,9 +1,11 @@
 import { z } from "zod";
 
 export const TodoId = z.string().uuid();
-export const CreateTodo = z.object({ title: z.string().min(1).max(200) }).strict();
+const Title = z.string().trim().min(1).max(200);
+
+export const CreateTodo = z.object({ title: Title }).strict();
 export const UpdateTodo = z
-  .object({ title: z.string().min(1).max(200).optional(), done: z.boolean().optional() })
+  .object({ title: Title.optional(), done: z.boolean().optional() })
   .strict()
   .refine((v) => v.title !== undefined || v.done !== undefined, { message: "Provide title or done" });
 
