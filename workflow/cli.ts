@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkOutcome } from "../checks/check_outcome.ts";
 import { CONTRACT_TEMPLATE, contractHash, missingFields, readContract, writeMetricValue } from "./contract.ts";
 import { activeSlug, append, eventsFor, last, readLedger, setActive, verifyChain } from "./ledger.ts";
-import { contractPath, root } from "./paths.ts";
-import { sh, tail } from "./run.ts";
+import { contractPath, ledgerPath, root } from "./paths.ts";
+import { run, sh, stdout, tail } from "./run.ts";
 
 const [cmd, slugArg, ...flags] = process.argv.slice(2);
 const has = (f: string) => flags.includes(f);
@@ -28,6 +29,34 @@ function contractOrRefuse(slug: string) {
   const missing = missingFields(c.contract);
   if (missing.length) refuse(slug, `contract missing: ${missing.join("; ")}`);
   return c;
+}
+
+const LEDGER = ".harness/ledger.jsonl";
+
+/** Finds the item's PR from its branch on GitHub, never from text the harness once parsed. */
+function findPr(branch: string): { number: number; url: string; state: string; mergedAt: string | null; mergedBy: { login: string } | null } | undefined {
+  const list = JSON.parse(stdout("gh", ["pr", "list", "--head", branch, "--state", "all", "--json", "number,url,state,mergedAt,mergedBy", "--limit", "1"])) as Array<NonNullable<ReturnType<typeof findPr>>>;
+  return list[0];
+}
+
+/** Switches branch while carrying the ledger along: the working-copy ledger is always the longest true chain. */
+function checkoutKeepingLedger(args: string[]): void {
+  const saved = existsSync(ledgerPath()) ? readFileSync(ledgerPath(), "utf8") : "";
+  run("git", ["checkout", "-q", "--", LEDGER], { allowFail: true });
+  run("git", ["checkout", "-q", ...args]);
+  if (saved) writeFileSync(ledgerPath(), saved);
+}
+
+/** Commits harness records on a feature branch and opens a PR for a human to merge. The agent never pushes main. */
+function shipRecords(slug: string, label: string): string {
+  const branch = `harness/${slug}-${label}`;
+  checkoutKeepingLedger(["-B", branch]);
+  run("git", ["add", "--", LEDGER, "docs/contracts", "docs/ticket-status.md"], { allowFail: true });
+  run("git", ["-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", `chore(harness): ${slug} ${label} record`]);
+  run("git", ["push", "-q", "-u", "origin", branch]);
+  const out = run("gh", ["pr", "create", "--base", "main", "--head", branch, "--title", `harness record: ${slug} ${label}`, "--body", `Ledger and contract records for ${slug} (${label}), written by the harness.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)`]).out;
+  checkoutKeepingLedger(["main"]);
+  return /https:\/\/github\.com\/\S+\/pull\/\d+/.exec(out)?.[0] ?? "(record PR url not found)";
 }
 
 /** The yes on record must cover the contract as it stands now. */
@@ -71,10 +100,13 @@ const commands: Record<string, () => void> = {
     if (phase === "after") {
       const shipped = last(slug, "shipped");
       if (!shipped) refuse(slug, "not shipped; there is no merge to measure after");
-      const pr = JSON.parse(sh(`gh pr view ${String(shipped.data.pr)} --json state,mergedAt,mergedBy,url`).out) as { state: string; mergedAt: string; mergedBy?: { login: string } };
-      if (pr.state !== "MERGED") refuse(slug, `PR is ${pr.state}; a human merges it before the after reading`);
-      if (!last(slug, "merged")) append(slug, "merged", { mergedAt: pr.mergedAt, mergedBy: pr.mergedBy?.login });
-      sh("git fetch -q origin && git checkout -q main && git pull -q --ff-only", { allowFail: true });
+      const pr = findPr(String(shipped.data.branch));
+      if (!pr) refuse(slug, `no PR found for ${String(shipped.data.branch)}`);
+      if (pr.state !== "MERGED") refuse(slug, `PR #${pr.number} is ${pr.state}; a human merges it before the after reading`);
+      run("git", ["fetch", "-q", "origin"]);
+      checkoutKeepingLedger(["main"]);
+      run("git", ["merge", "-q", "--ff-only", "origin/main"]);
+      if (!last(slug, "merged")) append(slug, "merged", { pr: pr.url, mergedAt: pr.mergedAt, mergedBy: pr.mergedBy?.login });
     }
     const value = readMetric(slug, c.contract.metricCommand!);
     append(slug, "metric", { phase, value, command: c.contract.metricCommand });
@@ -127,17 +159,18 @@ const commands: Record<string, () => void> = {
     const proof = last(slug, "proof");
     if (!proof) refuse(slug, "no proof clearance");
     if (proof.data.tree !== treeFingerprint()) refuse(slug, "the tree changed after proof; run proof again");
-    if (sh("git remote get-url origin", { allowFail: true }).code !== 0) refuse(slug, "no `origin` remote to push the feature branch to");
+    if (run("git", ["remote", "get-url", "origin"], { allowFail: true }).code !== 0) refuse(slug, "no `origin` remote to push the feature branch to");
     const branch = `item/${slug}`;
     if (/^(main|master|release\/)/.test(branch)) refuse(slug, "ship only pushes feature branches");
     const statusLine = `| ${slug} | ${c.contract.problem!.slice(0, 80)} | shipped, awaiting human merge | [contract](contracts/${slug}.md) |\n`;
     const index = join(root(), "docs/ticket-status.md");
     if (!existsSync(index)) writeFileSync(index, "# Item status\n\n| Item | Problem | Status | Contract |\n| --- | --- | --- | --- |\n");
     appendFileSync(index, statusLine);
-    sh(`git checkout -q -B ${branch}`);
-    sh("git add -A");
-    sh(`git -c core.hooksPath=/dev/null commit -q -m ${JSON.stringify(`feat(${slug}): ${c.contract.scenarios[0]!.then}\n\nContract: docs/contracts/${slug}.md\nStakeholder yes: ${String(last(slug, "approved")?.data.quote ?? "").slice(0, 120)}`)}`);
-    sh(`git push -q -u origin ${branch}`);
+    const title = `${slug}: ${c.contract.scenarios[0]!.then}`.slice(0, 120);
+    run("git", ["checkout", "-q", "-B", branch]);
+    run("git", ["add", "-A"]);
+    run("git", ["-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", `feat(${slug}): ${c.contract.scenarios[0]!.then}\n\nContract: docs/contracts/${slug}.md\nStakeholder yes: ${String(last(slug, "approved")?.data.quote ?? "").slice(0, 120)}`]);
+    run("git", ["push", "-q", "-u", "origin", branch]);
     const body: string = [
       `## ${slug}`,
       `**Problem:** ${c.contract.problem}`,
@@ -155,12 +188,16 @@ const commands: Record<string, () => void> = {
       "",
       "🤖 Generated with [Claude Code](https://claude.com/claude-code)",
     ].join("\n");
-    const bodyFile = join(root(), ".harness", `pr-${slug}.md`);
+    const bodyFile = join(tmpdir(), `sf-harness-pr-${slug}.md`);
     writeFileSync(bodyFile, body);
-    const pr = sh(`gh pr create --base main --head ${branch} --title ${JSON.stringify(`${slug}: ${c.contract.scenarios[0]!.then}`.slice(0, 120))} --body-file ${JSON.stringify(bodyFile)}`);
-    const url = pr.out.trim().split("\n").pop()!;
+    const created = run("gh", ["pr", "create", "--base", "main", "--head", branch, "--title", title, "--body-file", bodyFile]).out;
+    const url = /https:\/\/github\.com\/\S+\/pull\/\d+/.exec(created)?.[0];
+    if (!url) refuse(slug, `gh pr create printed no PR url:\n${tail(created, 5)}`);
     append(slug, "shipped", { branch, pr: url });
-    sh("git checkout -q main");
+    run("git", ["add", "--", LEDGER]);
+    run("git", ["-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", `chore(harness): ${slug} shipped record`]);
+    run("git", ["push", "-q", "origin", branch]);
+    checkoutKeepingLedger(["main"]);
     console.log(`PR opened: ${url}\nA human merges it. Then: npm run item -- metric ${slug} --after`);
   },
 
@@ -171,6 +208,8 @@ const commands: Record<string, () => void> = {
     const c = readContract(slug)!;
     append(slug, "closed", { before: c.contract.metric!.before, after: c.contract.metric!.after });
     if (activeSlug() === slug) setActive(undefined);
+    const recordPr = shipRecords(slug, "closed");
+    console.log(`Records PR (human merges): ${recordPr}`);
     console.log(`CLOSED ${slug}: ${c.contract.metric!.name} ${c.contract.metric!.before} → ${c.contract.metric!.after}`);
   },
 
@@ -183,7 +222,7 @@ const commands: Record<string, () => void> = {
   /** Draft of the Teams message I post after shipping; printed, never sent. */
   teams() {
     const slug = need(slugArg);
-    const pr = last(slug, "shipped")?.data.pr;
+    const pr = last(slug, "merged")?.data.pr ?? last(slug, "shipped")?.data.pr;
     console.log(`Ticket: docs/contracts/${slug}.md\nPR [sf-harness-hsn]: ${pr ? String(pr) : "(not shipped)"}`);
   },
 };
