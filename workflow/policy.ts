@@ -3,7 +3,7 @@
  */
 export const policy = {
   /** Files the agent may never edit: the gates themselves and the evidence they write. */
-  harnessOwned: [".harness/**", "hooks/**", "checks/**", "workflow/**", ".claude/settings.json", ".claude/settings.local.json", "docs/evidence/**"],
+  harnessOwned: [".harness/**", "metrics/**", "hooks/**", "checks/**", "workflow/**", ".claude/settings.json", ".claude/settings.local.json", "docs/evidence/**"],
   /** Frozen historical records: read, never add to (docs/tickets, docs/design in the SF workspace). */
   frozen: ["docs/tickets/**", "docs/design/**", "*.dump"],
   /** Edits that need no contract: specs, contracts and notes. */
