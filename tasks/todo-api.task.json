@@ -1,0 +1,25 @@
+{
+  "id": "todo-api",
+  "template": "templates/todo-api",
+  "goal": "Implement the Todo REST API described in README.md on top of src/db.ts, exporting handle() from src/app.ts.",
+  "acceptance": [
+    "All five routes in README.md behave as specified",
+    "Request bodies and path ids are validated with Zod",
+    "Every error is an RFC 7807 problem with content-type application/problem+json",
+    "Strict TypeScript with no any or suppressions",
+    "run_checks reports PASS for every check"
+  ],
+  "probes": [
+    { "method": "GET", "path": "/todos", "expectStatus": 200 },
+    { "method": "POST", "path": "/todos", "body": { "title": "write harness" }, "expectStatus": 201 },
+    { "method": "POST", "path": "/todos", "body": { "title": "" }, "expectStatus": 400 },
+    { "method": "POST", "path": "/todos", "body": { "title": "x", "extra": 1 }, "expectStatus": 400 },
+    { "method": "GET", "path": "/todos/not-a-uuid", "expectStatus": 400 },
+    { "method": "GET", "path": "/todos/00000000-0000-4000-8000-000000000000", "expectStatus": 404 },
+    { "method": "PATCH", "path": "/todos/00000000-0000-4000-8000-000000000000", "body": {}, "expectStatus": 400 },
+    { "method": "DELETE", "path": "/todos/00000000-0000-4000-8000-000000000000", "expectStatus": 404 },
+    { "method": "PUT", "path": "/todos", "expectStatus": 405 },
+    { "method": "GET", "path": "/nowhere", "expectStatus": 404 }
+  ],
+  "maxTurns": 30
+}

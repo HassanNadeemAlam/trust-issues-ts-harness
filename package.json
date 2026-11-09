@@ -1,0 +1,25 @@
+{
+  "name": "sf-harness-hsn",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Model-agnostic harness that drives an LLM to build TypeScript REST APIs and holds them to Zod, RFC 7807 and strict-type standards.",
+  "scripts": {
+    "setup": "npm install && npm run verify",
+    "harness": "tsx core/cli.ts",
+    "check": "tsx core/cli.ts check",
+    "type-check": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "verify": "npm run type-check && npm test"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "vitest": "^2.1.5"
+  }
+}
