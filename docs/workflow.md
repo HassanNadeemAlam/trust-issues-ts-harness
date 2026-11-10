@@ -1,13 +1,11 @@
 # Workflow — Hassan Nadeem
 
-> Draft built from my workspace rules (SF `AGENTS.md`) and my saved agent memory. Lines marked **[confirm]** were inferred and need my edit before submission.
-
 ## How work reaches me
 
 - **Jira (SFW project)** is the main channel. Tickets often carry one line and no detail (SEM tickets especially), so before I can start I have to rebuild the problem from the code and the data.
 - **Teams** for review pings and release questions. After shipping I post a fixed-format message: ticket link plus one PR link per repo.
 - **Stand-up** asks; I write the "scrum update" from commits and ticket status, not memory.
-- **Order I act on:** release-blocking bugs on beta/dev first, then the ticket in progress, then new Jira. **[confirm]**
+- **Order I act on:** release-blocking bugs on beta/dev first, then the ticket in progress, then new Jira.
 
 ## Where I lose time
 
@@ -35,11 +33,11 @@
 
 ## The three backlog items
 
-Example project: the to-do list API in `apps/todo-api`. **[to fill: three real items, each with a named stakeholder who types their own yes]**
+Example project: the to-do list API in `apps/todo-api`. Stakeholder for all three: Hassan Nadeem (me).
 
-- `<slug>` — owner: `<who>` — metric: `<what, window>`
-- `<slug>` — owner: `<who>` — metric: `<what, window>`
-- `<slug>` — owner: `<who>` — metric: `<what, window>`
+- `reject-blank-titles`: owner Hassan Nadeem. Metric: whitespace-only titles accepted out of 5 probes, per run. **5 → 0** (PR #1, records #3)
+- `paginate-todos`: owner Hassan Nadeem. Metric: items returned by one GET /todos with 1000 seeded, per run. **1000 → 50** (PR #5, records #6)
+- `add-priority`: owner Hassan Nadeem. Metric: priority scenarios passing out of 3, per run. **1 → 3** (PR #7, records #8)
 
 ## Gate by gate
 
