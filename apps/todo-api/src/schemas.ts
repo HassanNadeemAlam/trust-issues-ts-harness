@@ -9,5 +9,12 @@ export const UpdateTodo = z
   .strict()
   .refine((v) => v.title !== undefined || v.done !== undefined, { message: "Provide title or done" });
 
-export type CreateTodo = z.infer<typeof CreateTodo>;
+export const ListTodosQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    cursor: TodoId.optional(),
+  })
+  .strict();
+
+export type CreateTodo =z.infer<typeof CreateTodo>;
 export type UpdateTodo = z.infer<typeof UpdateTodo>;
