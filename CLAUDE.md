@@ -3,6 +3,7 @@
 Hooks in `.claude/settings.json` enforce everything below. If a hook refuses, read the reason and follow it; never work around it.
 
 Item flow (one active item at a time):
+0. `npm run item -- sync` to update main (git pull is blocked).
 1. `npm run item -- start <slug>`, fill `docs/contracts/<slug>.md` (Problem, Owner, Stakeholder, Metric, Metric command, Scenario lines, Not included, Touches, Test).
 2. `npm run item -- metric <slug> --before`, then `npm run item -- propose <slug>`. Show the contract and end your turn with `AWAITING-YES <slug>`. Do nothing else until the stakeholder types a yes.
 3. Write the failing test for a Scenario, then `npm run item -- red <slug>`.
