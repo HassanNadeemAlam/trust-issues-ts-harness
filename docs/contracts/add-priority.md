@@ -3,7 +3,7 @@
 Problem: "All my todos look the same; I can't tell which ones matter." Evidence: metrics/priority.ts — 1 of 3 priority scenarios pass on 2026-11-10; the one that passes is only the strict schema rejecting the unknown key.
 Owner: Hassan Nadeem (todo-api)
 Stakeholder: Hassan Nadeem
-Metric: priority scenarios passing out of 3, per run   before: 1   after: ____
+Metric: priority scenarios passing out of 3, per run   before: 1   after: 3
 Metric command: node_modules/.bin/tsx metrics/priority.ts
 Scenario: WHEN POST /todos includes priority "high" THEN the 201 body has priority "high"
 Scenario: WHEN GET /todos/:id for that todo THEN the body has priority "high"
