@@ -3,11 +3,15 @@ import { z } from "zod";
 export const TodoId = z.string().uuid();
 const Title = z.string().trim().min(1).max(200);
 
-export const CreateTodo = z.object({ title: Title }).strict();
+const Priority = z.enum(["low", "medium", "high"]);
+
+export const CreateTodo = z.object({ title: Title, priority: Priority.default("medium") }).strict();
 export const UpdateTodo = z
-  .object({ title: Title.optional(), done: z.boolean().optional() })
+  .object({ title: Title.optional(), done: z.boolean().optional(), priority: Priority.optional() })
   .strict()
-  .refine((v) => v.title !== undefined || v.done !== undefined, { message: "Provide title or done" });
+  .refine((v) => v.title !== undefined || v.done !== undefined || v.priority !== undefined, {
+    message: "Provide title, done or priority",
+  });
 
 export const ListTodosQuery = z
   .object({

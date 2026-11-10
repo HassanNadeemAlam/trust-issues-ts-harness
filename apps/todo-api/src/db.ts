@@ -4,8 +4,11 @@ export interface TodoRow {
   id: string;
   title: string;
   done: boolean;
+  priority: Priority;
   createdAt: string;
 }
+
+export type Priority = "low" | "medium" | "high";
 
 const rows = new Map<string, TodoRow>();
 
@@ -18,12 +21,18 @@ export const db = {
     findById(id: string): TodoRow | undefined {
       return rows.get(id);
     },
-    create(data: { title: string }): TodoRow {
-      const row: TodoRow = { id: randomUUID(), title: data.title, done: false, createdAt: new Date().toISOString() };
+    create(data: { title: string; priority?: Priority }): TodoRow {
+      const row: TodoRow = {
+        id: randomUUID(),
+        title: data.title,
+        done: false,
+        priority: data.priority ?? "medium",
+        createdAt: new Date().toISOString(),
+      };
       rows.set(row.id, row);
       return row;
     },
-    update(id: string, data: Partial<Pick<TodoRow, "title" | "done">>): TodoRow | undefined {
+    update(id: string, data: Partial<Pick<TodoRow, "title" | "done" | "priority">>): TodoRow | undefined {
       const row = rows.get(id);
       if (!row) return undefined;
       const next = { ...row, ...data };
