@@ -68,10 +68,14 @@ function approvedContract(slug: string) {
   return c;
 }
 
-/** Fingerprint of the working tree, so ship can prove nothing changed after proof. */
+/** Fingerprint of the working tree minus harness records, so ship can prove nothing changed after proof. */
 function treeFingerprint(): string {
-  const diff = sh("git add -A -n . && git diff HEAD && git ls-files --others --exclude-standard", { allowFail: true }).out;
-  return createHash("sha256").update(diff.replace(/^.*\.harness\/.*$/gm, "")).digest("hex").slice(0, 16);
+  const scope = ["--", ".", ":(exclude).harness"];
+  const diff = stdout("git", ["diff", "HEAD", ...scope]);
+  const untracked = stdout("git", ["ls-files", "--others", "--exclude-standard", ...scope]).split("\n").filter(Boolean);
+  const h = createHash("sha256").update(diff);
+  for (const f of untracked) h.update(`\0${f}\0`).update(readFileSync(join(root(), f)));
+  return h.digest("hex").slice(0, 16);
 }
 
 function readMetric(slug: string, command: string): string {
@@ -211,6 +215,18 @@ const commands: Record<string, () => void> = {
     const recordPr = shipRecords(slug, "closed");
     console.log(`Records PR (human merges): ${recordPr}`);
     console.log(`CLOSED ${slug}: ${c.contract.metric!.name} ${c.contract.metric!.before} → ${c.contract.metric!.after}`);
+  },
+
+  /** Fast-forwards main from origin, keeping the local ledger when it extends main's. */
+  sync() {
+    const saved = existsSync(ledgerPath()) ? readFileSync(ledgerPath(), "utf8") : "";
+    run("git", ["fetch", "-q", "origin"]);
+    run("git", ["checkout", "-q", "--", ".harness"], { allowFail: true });
+    run("git", ["merge", "-q", "--ff-only", "origin/main"]);
+    const merged = existsSync(ledgerPath()) ? readFileSync(ledgerPath(), "utf8") : "";
+    if (saved.length > merged.length && saved.startsWith(merged)) writeFileSync(ledgerPath(), saved);
+    else if (saved && !merged.startsWith(saved)) console.log("local ledger diverged from main; kept main's. Previous copy was not restored.");
+    console.log(`synced to ${stdout("git", ["rev-parse", "--short", "HEAD"]).trim()}; ${verifyChain() ?? "ledger chain ok"}`);
   },
 
   status() {

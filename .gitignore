@@ -4,3 +4,4 @@ runs/
 .env.*
 !.env.example
 *.log
+.harness/active
