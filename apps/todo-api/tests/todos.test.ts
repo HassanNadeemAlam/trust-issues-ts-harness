@@ -9,7 +9,47 @@ describe("todo api", () => {
     const created = await handle({ method: "POST", path: "/todos", body: { title: "buy milk" } });
     expect(created.status).toBe(201);
     const list = await handle({ method: "GET", path: "/todos" });
-    expect(list.body).toHaveLength(1);
+    expect((list.body as { items: unknown[] }).items).toHaveLength(1);
+  });
+
+  describe("pagination", () => {
+    type Page = { items: Array<{ id: string }>; nextCursor: string | null };
+    const seed = (n: number) => {
+      for (let i = 0; i < n; i++) db.todos.create({ title: `todo ${i}` });
+    };
+
+    it("returns at most 50 items with a cursor by default", async () => {
+      seed(120);
+      const res = await handle({ method: "GET", path: "/todos" });
+      expect(res.status).toBe(200);
+      const page = res.body as Page;
+      expect(page.items).toHaveLength(50);
+      expect(typeof page.nextCursor).toBe("string");
+    });
+
+    it("returns null nextCursor on the last page", async () => {
+      seed(3);
+      const page = (await handle({ method: "GET", path: "/todos" })).body as Page;
+      expect(page.items).toHaveLength(3);
+      expect(page.nextCursor).toBeNull();
+    });
+
+    it("walks pages with limit and cursor without overlap", async () => {
+      seed(25);
+      const first = (await handle({ method: "GET", path: "/todos?limit=10" })).body as Page;
+      const second = (await handle({ method: "GET", path: `/todos?limit=10&cursor=${first.nextCursor}` })).body as Page;
+      expect(first.items).toHaveLength(10);
+      expect(second.items).toHaveLength(10);
+      const ids = [...first.items, ...second.items].map((t) => t.id);
+      expect(new Set(ids).size).toBe(20);
+      expect(ids).toEqual(db.todos.findMany().slice(0, 20).map((t) => t.id));
+    });
+
+    it.each(["101", "abc", "0", "-1"])("rejects limit=%s with a problem document", async (limit) => {
+      const res = await handle({ method: "GET", path: `/todos?limit=${limit}` });
+      expect(res.status).toBe(400);
+      expect(res.headers["content-type"]).toBe("application/problem+json");
+    });
   });
 
   it("rejects an empty title with a problem document", async () => {

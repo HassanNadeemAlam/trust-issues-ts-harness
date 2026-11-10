@@ -1,9 +1,21 @@
 import { db } from "../db.ts";
 import { json, noContent, problem, validationProblem, type ApiResponse } from "../problem.ts";
-import { CreateTodo, TodoId, UpdateTodo } from "../schemas.ts";
+import { CreateTodo, ListTodosQuery, TodoId, UpdateTodo } from "../schemas.ts";
 
-export function listTodos(): ApiResponse {
-  return json(200, db.todos.findMany());
+export function listTodos(query: Record<string, string>): ApiResponse {
+  const parsed = ListTodosQuery.safeParse(query);
+  if (!parsed.success) return validationProblem(parsed.error);
+  const { limit, cursor } = parsed.data;
+  const all = db.todos.findMany();
+  let start = 0;
+  if (cursor !== undefined) {
+    const at = all.findIndex((t) => t.id === cursor);
+    if (at === -1) return problem(400, "Invalid cursor", `No todo with id ${cursor}`);
+    start = at + 1;
+  }
+  const items = all.slice(start, start + limit);
+  const nextCursor = start + limit < all.length ? (items.at(-1)?.id ?? null) : null;
+  return json(200, { items, nextCursor });
 }
 
 export function createTodo(body: unknown): ApiResponse {
