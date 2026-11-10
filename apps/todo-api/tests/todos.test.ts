@@ -12,6 +12,37 @@ describe("todo api", () => {
     expect((list.body as { items: unknown[] }).items).toHaveLength(1);
   });
 
+  describe("priority", () => {
+    it("stores the priority given on create and returns it on read", async () => {
+      const created = await handle({ method: "POST", path: "/todos", body: { title: "pay rent", priority: "high" } });
+      expect(created.status).toBe(201);
+      const row = created.body as { id: string; priority: string };
+      expect(row.priority).toBe("high");
+      const read = await handle({ method: "GET", path: `/todos/${row.id}` });
+      expect((read.body as { priority: string }).priority).toBe("high");
+    });
+
+    it("defaults priority to medium", async () => {
+      const created = await handle({ method: "POST", path: "/todos", body: { title: "t" } });
+      expect((created.body as { priority: string }).priority).toBe("medium");
+    });
+
+    it.each(["urgent", "", "HIGH", 3, null])("rejects priority %j with a problem document", async (priority) => {
+      const res = await handle({ method: "POST", path: "/todos", body: { title: "x", priority } });
+      expect(res.status).toBe(400);
+      expect(res.headers["content-type"]).toBe("application/problem+json");
+      expect((res.body as { errors: Array<{ path: string }> }).errors.map((e) => e.path)).toContain("priority");
+    });
+
+    it("changes priority on update and rejects invalid values", async () => {
+      const id = ((await handle({ method: "POST", path: "/todos", body: { title: "t" } })).body as { id: string }).id;
+      const updated = await handle({ method: "PATCH", path: `/todos/${id}`, body: { priority: "low" } });
+      expect((updated.body as { priority: string }).priority).toBe("low");
+      const bad = await handle({ method: "PATCH", path: `/todos/${id}`, body: { priority: "urgent" } });
+      expect(bad.status).toBe(400);
+    });
+  });
+
   describe("pagination", () => {
     type Page = { items: Array<{ id: string }>; nextCursor: string | null };
     const seed = (n: number) => {
